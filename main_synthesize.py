@@ -16,7 +16,6 @@ if __name__ == "__main__":
     c = np.array([[cap for i in range(R-1)]])
     c_b = cap
 
-    # Initialize
     sum_util_ks_rand, sum_util_ks_max, sum_util_mnw_eq, sum_util_ks_eq, sum_util_eq, sum_util_virtual_ks, sum_util_virtual_norm_utilitarian,\
          sum_norm_util_ks_rand, sum_norm_util_ks_max, sum_norm_util_mnw_eq, sum_norm_util_ks_eq, sum_norm_util_eq, sum_norm_util_virtual_ks, sum_norm_util_virtual_norm_utilitarian,\
              e_ks_rand, e_ks_max, e_mnw_eq, e_ks_eq, e_eq = ([0 for i in range(num_sample)] for j in range(19))

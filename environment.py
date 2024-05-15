@@ -20,7 +20,6 @@ class Env:
         self.prefs_appended = False
         self.moves_to_eq = 0
         self.util_percent = [0 for i in range(aps[0].R)]
-        self.found_eq = False
 
     def __repr__(self):
         out = ""
@@ -28,10 +27,7 @@ class Env:
         out += "++++++ agents:\n"
         for agent in self.agents:
             out += f"agent {agent.num:03d} at ap {agent.loc_num:02d} "
-            if np.sum(agent.x) >= agent.mms_task:
-                out += f"with x={np.sum(agent.x):.3f} and mms=True\n"
-            else:
-                out += f"with x={np.sum(agent.x):.3f} and mms={agent.mms_task / np.sum(agent.x)}\n"
+            out += f"with x={np.sum(agent.x):.3f}\n"
         out += "------- APs:\n"
         for ap in self.aps:
             out += f"AP {ap.num:03d} with mets={ap.mets:.3f}\n"
@@ -45,48 +41,30 @@ class Env:
                 self.aps[agent.loc_num].agents.append(agent)
                 self.unallocateds.remove(agent)
             for ap in self.aps:
-                if opt in ['ks', 'KS']:
+                if opt == 'ks':
                     ap.set_mets()
-                elif opt in ['lks', 'LKS']:
-                    ap.set_lmets()
-                elif opt in ['DRFH', 'drfh']:
-                    ap.set_medrs()
-                elif opt in ['MNW', 'mnw']:
+                elif opt == 'MNW':
                     ap.set_MNW()
-                elif opt in ['EQ', 'eq']:
-                    ap.set_eq()
         elif how == 'all_zero':
             for agent in self.agents:
                 agent.loc_num = 0
                 self.aps[0].agents.append(agent)
                 self.unallocateds.remove(agent)
             for ap in self.aps:
-                if opt in ['ks', 'KS']:
+                if opt == 'ks':
                     ap.set_mets()
-                elif opt in ['lks', 'LKS']:
-                    ap.set_lmets()
-                elif opt in ['DRFH', 'drfh']:
-                    ap.set_medrs()
-                elif opt in ['MNW', 'mnw']:
+                elif opt == 'MNW':
                     ap.set_MNW()
-                elif opt in ['EQ', 'eq']:
-                    ap.set_eq()
         elif how == 'given':
             for indx, agent in enumerate(self.agents):
                 agent.loc_num = init_loc[indx]
                 self.aps[init_loc[indx]].agents.append(agent)
                 self.unallocateds.remove(agent)
             for ap in self.aps:
-                if opt in ['ks', 'KS']:
+                if opt == 'ks':
                     ap.set_mets()
-                elif opt in ['lks', 'LKS']:
-                    ap.set_lmets()
-                elif opt in ['DRFH', 'drfh']:
-                    ap.set_medrs()
-                elif opt in ['MNW', 'mnw']:
+                elif opt == 'MNW':
                     ap.set_MNW()
-                elif opt in ['EQ', 'eq']:
-                    ap.set_eq()
         elif how == 'unallocate':
             for agent in self.agents:
                 if not np.isnan(agent.loc_num):
@@ -96,16 +74,10 @@ class Env:
                     self.pref = []
                     self.unallocateds.append(agent)
             for ap in self.aps:
-                if opt in ['ks', 'KS']:
+                if opt == 'ks':
                     ap.set_mets()
-                elif opt in ['lks', 'LKS']:
-                    ap.set_lmets()
-                elif opt in ['DRFH', 'drfh']:
-                    ap.set_medrs()
-                elif opt in ['MNW', 'mnw']:
+                elif opt == 'MNW':
                     ap.set_MNW()
-                elif opt in ['EQ', 'eq']:
-                    ap.set_eq()
         elif how == 'balanced':
             N, E = self.N, self.E
             s = 0
@@ -120,17 +92,15 @@ class Env:
                 self.agents[k].loc_num = (k % E)
                 self.aps[k % E].agents.append(self.agents[k])
                 self.unallocateds.remove(self.agents[k])
+
             for ap in self.aps:
-                if opt in ['ks', 'KS']:
+                if opt == 'ks':
                     ap.set_mets()
-                elif opt in ['lks', 'LKS']:
-                    ap.set_lmets()
-                elif opt in ['DRFH', 'drfh']:
-                    ap.set_medrs()
-                elif opt in ['MNW', 'mnw']:
+                elif opt == 'MNW':
                     ap.set_MNW()
-                elif opt in ['EQ', 'eq']:
+                elif opt == 'EQ':
                     ap.set_eq()
+
         elif how == 'add_order_min_x_inv':
             self.initialize(how='unallocate', opt=opt)
             for agent in self.agents:
@@ -140,49 +110,9 @@ class Env:
                 agent.move(np.nan, self.aps[apt_num], opt='ks')
                 self.unallocateds.remove(agent)
 
-    def set_agents_MMS(self):
-        psi_value_mat = np.zeros(shape=(self.N, self.E))
-        mms_bundle_mat = np.zeros(shape=(self.N, self.E))
-        for agent in self.agents:
-            psi_value_mat[agent.num, :] = list(agent.max_task.values())
-            mms_bundle_mat[agent.num, :] = [agent.mms_task_conf[k]['num_user'] for k in agent.mms_task_conf]
-        self.psi_value_mat = psi_value_mat
-        self.mms_bundle_mat = mms_bundle_mat
-
-    def find_MMS_association(self, server_order_lst=[]):
-        unalloc_user_lst = [i for i in range(self.N)]
-        assoc_loc_lst = [0 for i in range(self.N)]
-        idx = 0
-        while idx < self.E and unalloc_user_lst:
-            s = server_order_lst[idx]
-            sorted_user = sorted(unalloc_user_lst,
-                                 key=lambda k: self.mms_bundle_mat[:, s][k],
-                                 reverse=True)
-            num_assoc_users = 0
-            for user_num in sorted_user:
-                user_bundle_on_server = self.mms_bundle_mat[user_num, s]
-                if user_bundle_on_server >= num_assoc_users+1:
-                    assoc_loc_lst[user_num] = s
-                    unalloc_user_lst.remove(user_num)
-                    num_assoc_users += 1
-                else:
-                    break
-            idx += 1
-        assert not unalloc_user_lst
-        return assoc_loc_lst
-
-    def max_intra_envy_ratio(self):
-        max_ratio = 0
-        for from_agent in self.agents:
-            from_agent_x = np.sum(from_agent.x)
-            for to_agent in self.agents:
-                if from_agent.loc_num == to_agent.loc_num:
-                    continue
-                e = np.min(np.sum(to_agent.x) * slice_row(to_agent.d, to_agent.loc_num, 0, self.aps[0].R) /
-                           slice_row(from_agent.d, to_agent.loc_num, 0, self.aps[0].R)) / from_agent_x
-                if e > max_ratio:
-                    max_ratio = e
-        return max_ratio
+    def add_one_agent(self, add_who='rand', add_where='rand'):
+        if how == 'min_max_load':
+            pass
 
     def is_REF(self, opt='ks'):
         bad_agents = {i:[] for i in range(self.E)}
@@ -224,14 +154,8 @@ class Env:
                 return False
         return True
 
-    def is_mms(self):
-        for agent in self.agents:
-            if (np.sum(agent.x) - agent.mms_task)/agent.mms_task < -1e-4:
-                return False
-        return True
-
     def append_agents_pref(self, opt='ks'):
-        if opt in ['ks', 'KS', 'lks', 'LKS', 'MNW', 'mnw', 'EQ', 'eq', 'DRFH', 'drfh']:
+        if opt == 'ks' or opt == 'MNW':
             for agent in self.agents:
                 pref_dict = {}
                 for ap in self.aps:
@@ -243,19 +167,11 @@ class Env:
 
     def find_eq(self, opt='ks', agent_how='rand', ap_how='rand'):
         moves = 0
-        if opt in ['MNW', 'mnw', 'EQ', 'eq', 'lks', 'LKS']:
-            check_if_continue = lambda is_not_eq, m: (m <= 300) and is_not_eq
-        else:
-            check_if_continue = lambda is_not_eq, m: is_not_eq
-        while check_if_continue(not self.is_eq(opt=opt), moves):
+        while not self.is_eq(opt=opt):
             moves += 1
             self.move_one_agent(agent_how=agent_how, ap_how=ap_how, opt=opt)
             self.append_agents_pref(opt=opt)
-#             print(f"***** move {moves} *****")
-#             for ap in self.aps:
-#                 print([agent.num for agent in ap.agents])
         self.move_to_eq = moves
-        self.found_eq = (moves <= 300) if opt in ['MNW', 'mnw', 'EQ', 'eq', 'lks', 'LKS'] else True
 
     def get_who_can_move(self, opt='ks'):
         if not self.prefs_appended:
@@ -291,10 +207,10 @@ class Env:
             agent.move(apf, apt, opt=opt)
             self.prefs_appended = False
         elif agent_how == 'min_ratio':
-            min_ratio = np.inf
+            min_ratio = 0
             for ag_num in self.get_who_can_move(opt=opt):
                 k = get_keyOfMinVal(self.agents[ag_num].prefs[-1])
-                if self.agents[ag_num].prefs[-1][k] < min_ratio:
+                if self.agents[ag_num].prefs[-1][k] > min_ratio:
                     min_ap_num = k
                     min_agent_num = ag_num
                     min_ratio = self.agents[ag_num].prefs[-1][k]
@@ -313,10 +229,12 @@ class Env:
         for i in range(E):
             total_c[0:1, 0:-1] += np.sum(self.aps[i].cluster.capacity, axis=0, keepdims=True)
             total_c[0, -1] += self.aps[i].bw_cap
+
         # combine all users utilization
         consumption = np.zeros(shape=(1, R))
         for i in range(N):
             consumption += np.sum(self.agents[i].x) * self.agents[i].d[0:1, :]
+
         util_percent = 100 * consumption / total_c
         for r in range(R):
             self.util_percent[r] = util_percent[0][r]
@@ -324,18 +242,29 @@ class Env:
 
 class HomoEnv(Env):
     def __init__(self, agents, aps):
+        self.agents = agents
         for ap in aps[1:]:
             if not np.array_equal(aps[0].cluster.capacity, ap.cluster.capacity) or aps[0].bw_cap != ap.bw_cap:
                 raise Exception("APs must be exactly the same in HomoEnv.")
-        super().__init__(agents, aps)
+        self.aps = aps
+        self.N = len(agents)
+        self.E = len(aps)
+        self.R = aps[0].R
+        self.moves_to_eq = 0
+        self.util_percent = [0 for i in range(aps[0].R)]
+        self.unallocateds = agents.copy()
+        self.prefs_appended = False
+
 
 
 class VirtEnv(Env):
     def __init__(self, agents, aps):
         virt_agents = []
         R_comp = aps[0].cluster.R_comp
-        N, E = len(agents), len(aps)
-        virt_c, virt_c_b = np.zeros(shape=(1, R_comp)), 0
+        virt_c = np.zeros(shape=(1, R_comp))
+        virt_c_b = 0
+        N = len(agents)
+        E = len(aps)
         for i in range(E):
             virt_c += aps[i].cluster.capacity
             virt_c_b += aps[i].bw_cap
@@ -343,4 +272,13 @@ class VirtEnv(Env):
         virt_aps = [Ap(0, virt_clusters[0], virt_c_b)]
         for i in range(N):
             virt_agents.append(HomoAgent(i, agents[i].d[0:1, :], virt_aps))
-        super().__init__(virt_agents, virt_aps)
+
+        self.agents = virt_agents
+        self.aps = virt_aps
+        self.N = len(virt_agents)
+        self.E = len(virt_aps)
+        self.R = virt_aps[0].R
+        self.moves_to_eq = 0
+        self.util_percent = [0 for i in range(aps[0].R)]
+        self.unallocateds = virt_agents.copy()
+        self.prefs_appended = False
